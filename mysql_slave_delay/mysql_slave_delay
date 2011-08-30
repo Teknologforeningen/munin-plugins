@@ -1,0 +1,86 @@
+#!/bin/sh
+#
+# Plugin to monitor the mysql slave delay.
+#
+# Parameters:
+#
+#       config
+#       autoconf
+#
+# Configuration variables
+#
+#       mysqlopts    - Options to pass to mysql
+#
+#
+#
+#%# family=auto
+#%# capabilities=autoconf
+
+MYSQLOPTS="$mysqlopts"
+MYSQL=/usr/bin/mysql
+
+if [ "x$MYSQLOPTS" = "x" ]; then
+        MYSQLOPTS="-u root"
+fi
+
+if [ "$1" = "autoconf" ]; then
+        $MYSQL --version 2>/dev/null >/dev/null
+        if [ $? -eq 0 ]
+        then
+                $MYSQL $MYSQLOPTS status 2>/dev/null >/dev/null
+                if [ $? -eq 0 ]
+                then
+                else
+                        echo "no (could not connect to mysql)"
+                fi
+        else
+                echo "no (mysql not found)"
+        fi
+        exit 1
+fi
+
+if [ "$1" = "config" ]; then
+        echo 'graph_title MySQL slave delay'
+        echo 'graph_vlabel second'
+        echo 'graph_category mysql'
+        echo 'graph_args --base 1000'
+
+        echo 'delay.label delay'
+        echo 'delay.info Seconds_Behind_Master'
+        echo 'delay.draw LINE2'
+        echo 'delay.min -10'
+        echo 'delay.max 10'
+        echo 'delay.critical 0:5'
+        exit 0
+fi
+
+SLAVESTATUS=`$MYSQL $MYSQLOPTS -e "show slave status \G"`
+
+echo "$SLAVESTATUS" | grep Slave_IO_Running | grep Yes > /dev/null
+IS_SLAVE_IO_RUNNIG=$?
+
+echo "$SLAVESTATUS" | grep Slave_SQL_Running | grep Yes > /dev/null
+IS_SLAVE_SQL_RUNNIG=$?
+
+DELAY=`echo "$SLAVESTATUS" | grep Seconds_Behind_Master | cut -d ':' -f 2 | sed -e 's# ##g'`
+ERROR=`echo "$SLAVESTATUS" | grep Last_Error | sed -e 's# ##g'`
+
+if [ $IS_SLAVE_IO_RUNNIG -ne 0 ]; then
+        if [ $IS_SLAVE_SQL_RUNNIG -ne 0 ]; then
+                echo "delay.value -10"
+                echo "delay.extinfo $ERROR (Slave_IO_Running:No,Slave_SQL_Running:No)"
+                exit 0
+        fi
+        echo "delay.value -10"
+        echo "delay.extinfo $ERROR (Slave_IO_Running:No,Slave_SQL_Running:Yes)"
+        exit 0
+fi
+
+if [ $IS_SLAVE_SQL_RUNNIG -ne 0 ]; then
+        echo "delay.value -10"
+        echo "delay.extinfo $ERROR (Slave_IO_Running:Yes,Slave_SQL_Running:No)"
+        exit 0
+fi
+
+echo "delay.value $DELAY"
+exit 0

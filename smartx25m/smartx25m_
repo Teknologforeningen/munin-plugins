@@ -1,0 +1,93 @@
+#!/bin/sh
+#
+# Plugin to monitor the S.M.A.R.T by Intel X25 SSD
+#
+# Parameters:
+#
+#       config
+#       autoconf
+#
+# Configuration variables
+#
+#example
+#
+#ln -s /usr/share/munin/plugins/smartx25m_ /etc/munin/plugins/smartx25m_sda
+#
+#AND...
+# append /etc/munin/plugin-conf.d/munin-node
+# if not root permission, smartctl can not open /dev/sda.
+#
+#vim /etc/munin/plugin-conf.d/munin-node
+#----------------------------------------
+#[smartx25m*]
+#user root
+#----------------------------------------
+#
+#
+#
+#
+#%# family=auto
+#%# capabilities=autoconf
+
+SMARTCTL=/usr/sbin/smartctl
+DEVICE=`basename $0 | sed 's/^smartx25m_//g'`
+
+if [ "x$DEVICE" = "x" ]; then
+        DEVICE=sda
+fi
+
+
+if [ "$1" = "autoconf" ]; then
+        $SMARTCTL --version 2>/dev/null >/dev/null
+        if [ $? -eq 0 ]; then
+                $SMARTCTL -i /dev/$DEVICE | grep "Device Model" | grep INTEL | grep SSD > /dev/null
+                if [ $? -eq 0 ]; then
+                        echo "yes"
+                else
+                echo "no (device $DEVICE is NO INTEL SSD!)"
+                fi
+        else
+                echo "no (smartctl not found)"
+        fi
+        exit 1
+fi
+
+if [ "$1" = "config" ]; then
+        echo 'graph_title INTEL X25M SMART'
+        echo 'graph_vlabel param'
+        echo 'graph_category disk'
+        echo 'graph_args --base 1000'
+
+        echo 'E8.label Available Reserved Space(E8)'
+        echo 'E8.info Representing the remaining number of reserved areas. Normalized (Normalized) values,, starting from 100 represents 100 percent. Normal range up to 10 percent.'
+        echo 'E8.draw LINE2'
+        echo 'E8.min 0'
+        echo 'E8.max 100'
+        echo 'E8.warning 20:100'
+        echo 'E8.critical 10:100'
+
+        echo 'E9.info Flash memory is a well-thumbed representing the degree of media. Erase the increasing average normalized (Normalized) will decrease the value to 1-100.'
+        echo 'E9.draw LINE2'
+        echo 'E9.min 0'
+        echo 'E9.max 100'
+        echo 'E9.warning 10:100'
+        echo 'E9.critical 1:100'
+
+        echo 'B8.label End to End Error Detection Count(B8)'
+        echo 'B8.info The data in the drive path, representing the number of errors that occurred during the LBA tag check. LBA tag check is performed to verify the integrity of the data.'
+        echo 'B8.draw LINE2'
+        echo 'B8.min 0'
+        echo 'B8.max 100'
+        echo 'B8.critical 99:'
+        exit 0
+fi
+
+SMARTSTATUS=`$SMARTCTL -d ata -A /dev/$DEVICE`
+V_E8=`echo "$SMARTSTATUS" | grep "^232" | awk '{ print $4 }'`
+V_E9=`echo "$SMARTSTATUS" | grep "^233" | awk '{ print $4 }'`
+V_B8=`echo "$SMARTSTATUS" | grep "^184" | awk '{ print $4 }'`
+
+echo "E8.value $V_E8"
+echo "E9.value $V_E9"
+echo "B8.value $V_B8"
+exit 0
