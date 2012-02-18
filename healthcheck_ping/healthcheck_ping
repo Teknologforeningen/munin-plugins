@@ -93,8 +93,8 @@ if [ "$1" = "config" ]; then
          if [ "x${slowspeed}" = "x" ]; then
              slowspeed=3
          fi
-         let slowspeedMS="slowspeed * 1000"    #convert micro second.
-         let slowspeedMS15="slowspeed * 3 / 2" #slowspeedMS * 1.5
+         let slowspeedMS="slowspeed * 1000"    #convert miri second.
+         let slowspeedMS15="slowspeed * 3 / 2 * 1000" #slowspeedMS * 1.5
 
          echo "$name.label $name"
          echo "$name.info $ping"
