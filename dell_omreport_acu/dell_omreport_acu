@@ -1,0 +1,133 @@
+#!/usr/bin/env perl
+#
+# acu - Munin plugin for Dell Raid Array Controllers
+#
+# Copyright (C) 2011 Hiroyuki Fujie(rti)
+# Copyright (C) 2010 Magnus Hagander
+
+#
+# This program is free software; you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation; either version 2 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License along
+# with this program; if not, write to the Free Software Foundation, Inc.,
+# 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
+
+=head1 NAME
+
+dell_omreport_acu - Munin plugin to monitor HP Array Controllers
+
+=head1 CONFIGURATION
+
+=head1 INTERPRETATION
+
+The graph will show information about number of controllers,
+logical drives and physical drives that are ok or degraded.
+
+=head1 MAGIC MARKERS
+
+ #%# family=contrib
+
+=head1 AUTHOR
+
+Magnus Hagander <magnus@hagander.net>
+Hiroyuki Fujie <super.rti@mail.com> 
+
+=head1 LICENSE
+
+GPLv2
+
+=cut
+
+use strict;
+use warnings;
+
+#use Munin::Plugin;
+
+if ( $ARGV[0] and $ARGV[0] eq "autoconf") {
+   print "no\n";
+   exit(0);
+}
+
+if ( $ARGV[0] and $ARGV[0] eq "config") {
+   print "graph_title Dell Hardware Raid\n";
+   print "graph_category disk\n";
+   print "dell_omreport_acu_logicaldrives_ok.label Logical Drives OK\n";
+   print "dell_omreport_acu_logicaldrives_ok.type GAUGE\n";
+   print "dell_omreport_acu_logicaldrives_ok.min 0\n";
+   print "dell_omreport_acu_logicaldrives_deg.label Logical Drives degraded\n";
+   print "dell_omreport_acu_logicaldrives_deg.type GAUGE\n";
+   print "dell_omreport_acu_logicaldrives_deg.min 0\n";
+   print "dell_omreport_acu_logicaldrives_deg.critical 1\n";
+   print "dell_omreport_acu_physicaldrives_ok.label Physical Drives OK\n";
+   print "dell_omreport_acu_physicaldrives_ok.type GAUGE\n";
+   print "dell_omreport_acu_physicaldrives_ok.min 0\n";
+   print "dell_omreport_acu_physicaldrives_deg.label Physical Drives degraded\n";
+   print "dell_omreport_acu_physicaldrives_deg.type GAUGE\n";
+   print "dell_omreport_acu_physicaldrives_deg.min 0\n";
+   print "dell_omreport_acu_physicaldrives_deg.critical 1\n";
+   exit(0);
+}
+
+my @slots;
+open(DELLOPMANAGE, "omreport storage controller |") || die "Could not run omreport\n";
+while (<DELLOPMANAGE>) {
+   if (/ID *\: *(\d+)/) {
+      push @slots, $1;
+   }
+}
+close(DELLOPMANAGE);
+
+my $logicaldrives_ok = 0;
+my $logicaldrives_degrad = 0;
+my $physicaldrives_ok = 0;
+my $physicaldrives_degrad = 0;
+my $logicaldrives_msg = '';
+my $physicaldrives_msg = '';
+
+foreach my $slot (@slots) {
+   # Check logical drives
+   open(DELLOPMANAGE, "omreport storage vdisk controller=$slot |") || die "Could not run omreport\n";
+   while (<DELLOPMANAGE>) {
+      if (/Status *\: *(.*)/) {
+         if ($1 eq "Ok") {
+            $logicaldrives_ok++;
+         } else {
+            $logicaldrives_degrad++;
+            $logicaldrives_msg .= $_;
+         }
+      }
+   }
+
+   # Finally, check physical drives
+   open(DELLOPMANAGE, "omreport storage pdisk controller=$slot |") || die "Could not run omreport\n";
+   while (<DELLOPMANAGE>) {
+      if (/Status *\: *(.*)/) {
+         if ($1 eq "Ok") {
+            $physicaldrives_ok++;
+         } else {
+            $physicaldrives_degrad++;
+            $physicaldrives_msg .= $_;
+         }
+      }
+    }
+   close(DELLOPMANAGE);
+}
+
+$logicaldrives_msg =~ s/\n/ :: /g;
+$physicaldrives_msg =~ s/\n/ :: /g;
+
+print "dell_omreport_acu_logicaldrives_ok.value $logicaldrives_ok\n";
+print "dell_omreport_acu_logicaldrives_deg.value $logicaldrives_degrad\n";
+print "dell_omreport_acu_logicaldrives_deg.extinfo $logicaldrives_msg\n" if ($logicaldrives_msg);
+print "dell_omreport_acu_physicaldrives_ok.value $physicaldrives_ok\n";
+print "dell_omreport_acu_physicaldrives_deg.value $physicaldrives_degrad\n";
+print "dell_omreport_acu_physicaldrives_deg.extinfo $physicaldrives_msg\n" if ($physicaldrives_msg);
+

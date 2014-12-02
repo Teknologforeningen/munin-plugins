@@ -1,0 +1,148 @@
+#!/bin/bash
+#
+#healthcheck on munin
+#check ping speed.
+#egrep contents string
+# ... and alert.
+#
+#programed by rti (hiroyuki fujie) super.rti@gmail.com @super_rti
+#LICENSE: NYSL (public domain)
+#
+#config file
+#      /etc/munin/plugin-conf.d/munin-node
+#
+#example minimum config
+#---------------------------------------------------
+#[healthcheck_ping]
+#env.ping_1  127.0.0.1
+#---------------------------------------------------
+#
+#chcek two site 
+#---------------------------------------------------
+#[healthcheck_ping]
+#env.ping_1 127.0.0.1
+#env.ping_2  www.google.com
+#---------------------------------------------------
+#
+#chcek three site 
+#---------------------------------------------------
+#[healthcheck_ping]
+#env.ping_1  127.0.0.1
+#env.ping_2  www.google.com
+#env.ping_3  192.168.1.1
+#---------------------------------------------------
+#
+#set name
+#---------------------------------------------------
+#[healthcheck_ping]
+#env.ping_1 127.0.0.1
+#env.name_1 homhom
+#---------------------------------------------------
+##
+#set slow speed(second)
+#---------------------------------------------------
+#[healthcheck_ping]
+#env.ping_1  127.0.0.1
+#env.slowspeed_1 3
+#---------------------------------------------------
+#
+#full option
+#/etc/munin/plugin-conf.d/munin-node
+#---------------------------------------------------
+#[healthcheck_ping]
+#env.ping_1  127.0.0.1                 #check ping
+#env.name_1  sayasaya                  #set line name. default by ping domain
+#env.slowspeed_1 3                     #slow time on alert
+#---------------------------------------------------
+#
+#
+
+#edakari speed up.
+CHECKMAX=`env | grep ping_ | wc -l`
+let CHECKMAX="$CHECKMAX + 1"
+
+if [ "$1" = "autoconf" ]; then
+    if [ $CHECKMAX -le 1 ]; then
+         echo no
+         exit 1
+    fi
+    echo yes
+    exit 0
+fi
+
+if [ "$1" = "config" ]; then
+    echo 'graph_title ping speed (microsecond)'
+    echo "graph_args --base 1000 -l 0 --vertical-label microsecond"
+    echo 'graph_scale no'
+    echo 'graph_vlabel microsecond'
+    echo 'graph_category healthcheck'
+    echo 'graph_info This graph shows the site speed'
+
+    for(( I = 1; I < $CHECKMAX; ++I ))
+    do
+         eval ping=\$ping_${I}
+         eval name=\$name_${I}
+         eval slowspeed=\$slowspeed_${I}
+         if [ "x${ping}" = "x" ]; then
+              continue
+         fi
+         if [ "x${name}" = "x" ]; then
+             #default name by domain
+             name=`echo $ping | sed 's#\.#_#g'`
+         fi
+         if [ "x${slowspeed}" = "x" ]; then
+             slowspeed=3
+         fi
+         let slowspeedMS="slowspeed * 1000"    #convert micro second.
+         let slowspeedMS15="slowspeed * 3 / 2" #slowspeedMS * 1.5
+
+         echo "$name.label $name"
+         echo "$name.info $ping"
+         echo "$name.draw LINE2"
+         echo "$name.min -10"
+         echo "$name.max ${slowspeedMS15}"
+         echo "$name.critical 0:${slowspeedMS}"
+    done
+
+    exit 0
+fi
+
+for(( I = 1; I < $CHECKMAX; ++I ))
+do
+     eval ping=\$ping_${I}
+     eval name=\$name_${I}
+     eval slowspeed=\$slowspeed_${I}
+
+     if [ "x${ping}" = "x" ]; then
+        continue
+     fi
+     if [ "x${name}" = "x" ]; then
+        #default name by domain
+        name=`echo $ping | sed 's#\.#_#g'`
+     fi
+
+     if [ "x${slowspeed}" = "x" ]; then
+        slowspeed=3
+     fi
+     let timeout="${slowspeed} + 1"
+
+     PING_RESULT=`ping -c 1 -n -w ${timeout} "${ping}" | grep "icmp_seq=1"`
+     PINGRESULT=$?
+
+     if [ $PINGRESULT -ne 0 ]; then
+         if [ "x$PING_RESULT" = "x" ]; then
+              PING_RESULT="ping can not respons. timeout $slowspeed second"
+         fi
+         echo "$name.value -10"
+         echo "$name.extinfo $PING_RESULT"
+         continue
+     fi
+
+     TIMEMS=`echo $PING_RESULT | sed 's/.*time=\([^ ]*\).*/\1/g'`
+     if [ "x$TIMEMS" = "x" ]; then
+         echo "$name.value -8"
+         echo "$name.extinfo bad time: $PING_RESULT"
+         continue
+     fi
+     echo "$name.value $TIMEMS"
+done
