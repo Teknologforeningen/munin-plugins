@@ -135,8 +135,8 @@ foreach my $slot (@slots) {
    # Finally, check physical drives
    open(HPACU, "/usr/sbin/hpacucli controller slot=$slot physicaldrive all show |") || die "Could not run hpacucli\n";
    while (<HPACU>) {
-      if (/physicaldrive .* \(.*, .*, .*, (.*)\)/) {
-         if ($1 eq "OK") {
+      if (/physicaldrive .* \(.*, .*, (.*), (.*)\)/) {
+         if ($2 eq "OK" or $1 eq "OK") {
             $physicaldrives_ok++;
          } else {
             $physicaldrives_degrad++;
