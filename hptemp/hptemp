@@ -66,7 +66,7 @@ while (<HPLOG>) {
    next if /^ID/;
 
    if (/^\s*(\d+)\s*Basic Sensor\s+(CPU \(\d+\)|Ambient|Processor Zone|Memory Board|Mem\. Brd\. \(\d+\)|System Board|Pwr\. Supply Bay|I\/O Zone|SCSI Backplane)\s+(\S+)\s+\d+F\/\s*(\d+)C\s+\d+F\/\s*(\d+)C/) {
-   	if ( $4 ne '---' ) {
+	if ( $4 ne '---' ) {
       		push @sensors, {
 			'id' => $1,
 			'name' => $2,
@@ -76,9 +76,9 @@ while (<HPLOG>) {
 		};
    	}
    }
-   else {
-      warn "Could not parse line $_";
-   }
+   #else {
+   #   warn "Could not parse line $_";
+   #}
 }
 close(HPLOG);
 
